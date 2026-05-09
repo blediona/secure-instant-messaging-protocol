@@ -64,3 +64,65 @@ def decrypt_message(ciphertext_b64: str, nonce_b64: str, key: bytes, associated_
     )
 
     return plaintext.decode("utf-8")
+
+
+def create_secure_message(
+        sender_keys: dict,
+        recipient_public_keys: dict,
+        plaintext: str,
+        sender_username: str,
+        recipient_username: str
+) -> dict:
+    if not verify_signed_prekey(
+      recipient_public_keys["signing_public_key"],
+      recipient_public_keys["signed_prekey_public_key"],
+      recipient_public_keys["signed_prekey_signature"],
+    ):
+        raise ValueError("Recipient signed pre-key is invalid.")
+
+    ephemeral_private, ephemeral_public = generate_x25519_keypair()
+
+    recipient_prekey_public=load_x25519_public_key(
+        recipient_public_keys["signed_prekey_public_key"]
+    )
+
+    shared_secret = ephemeral_private.exchange(recipient_prekey_public)
+
+    salt = os.urandom(16)
+
+    symmetric_key = derive_symmetric_key(shared_secret, salt)
+
+    ephemeral_public_key_b64 = public_key_to_b64(ephemeral_public)
+
+    header = {
+        "version": MESSAGE_VERSION,
+        "algorithm": "X25519-HKDF-SHA256-AESGCM-Ed25519",
+        "from": sender_username,
+        "to": recipient_username,
+        "sender_identity_public_key": sender_keys["identity_public_key"],
+        "recipient_identity_public_key": recipient_public_keys["identity_public_key"],
+        "recipient_signed_prekey_public_key": recipient_public_keys["signed_prekey_public_key"],
+        "ephemeral_public_key": ephemeral_public_key_b64,
+        "salt": b64e(salt)
+    }
+
+    associated_data = canonical_json_bytes(header)
+    encrypted_data = encrypt_message(plaintext, symmetric_key, associated_data)
+
+    signed_payload = {
+        "header": header,
+        "nonce": encrypted_data["nonce"],
+        "ciphertext": encrypted_data["ciphertext"]
+    }
+
+    signature = sign_data(
+        sender_keys["signing_private_key"],
+        canonical_json_bytes(signed_payload)
+    )
+
+    return {
+        "header": header,
+        "nonce": encrypted_data["nonce"],
+        "ciphertext": encrypted_data["ciphertext"],
+        "signature": signature
+    }
