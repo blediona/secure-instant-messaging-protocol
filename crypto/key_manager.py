@@ -46,3 +46,17 @@ def private_key_to_b64(private_key) -> str:
         encryption_algorithm=serialization.NoEncryption()
     )
     return b64e(raw)
+    def load_x25519_private_key(private_key_b64: str):
+    return x25519.X25519PrivateKey.from_private_bytes(b64d(private_key_b64))
+
+
+def load_x25519_public_key(public_key_b64: str):
+    return x25519.X25519PublicKey.from_public_bytes(b64d(public_key_b64))
+
+
+def load_ed25519_private_key(private_key_b64: str):
+    return ed25519.Ed25519PrivateKey.from_private_bytes(b64d(private_key_b64))
+
+
+def load_ed25519_public_key(public_key_b64: str):
+    return ed25519.Ed25519PublicKey.from_public_bytes(b64d(public_key_b64))
