@@ -126,3 +126,55 @@ def create_secure_message(
         "ciphertext": encrypted_data["ciphertext"],
         "signature": signature
     }
+
+def open_secure_message(
+        recipient_keys: dict,
+        sender_public_keys: dict,
+        secure_message: dict
+) -> str:
+    header = secure_message["header"]
+
+    if header.get("recipient_identity_public_key") !=recipient_keys["identity_public_key"]:
+        raise ValueError("This message was not encrypted for this recipient.")
+
+    if header.get("sender_identity_public_key") != sender_public_keys["identity_public_key"]:
+        raise ValueError("Sender identity key does not match the message header.")
+
+    signed_payload = {
+        "header": header,
+        "nonce": secure_message["nonce"],
+        "ciphertext": secure_message["ciphertext"]
+    }
+
+    is_valid = verify_signature(
+        sender_public_keys["signing_public_key"],
+        secure_message["signature"],
+        canonical_json_bytes(signed_payload)
+    )
+
+    if not is_valid:
+        raise ValueError("Invalid signature. Message may have been modified.")
+
+    recipient_private_key = load_x25519_private_key(
+        recipient_keys["signed_prekey_private_key"]
+    )
+
+    ephemeral_public_key = load_x25519_public_key(
+        header["ephemeral_public_key"]
+    )
+
+    shared_secret = recipient_private_key.exchange(ephemeral_public_key)
+
+    symmetric_key = derive_symmetric_key(
+        shared_secret,
+        b64d(header["salt"])
+    )
+
+    plaintext = decrypt_message(
+        secure_message["ciphertext"],
+        secure_message["nonce"],
+        symmetric_key,
+        canonical_json_bytes(header)
+    )
+
+    return plaintext
