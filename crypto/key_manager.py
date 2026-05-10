@@ -91,3 +91,50 @@ def rotate_signed_prekey(keys: dict) -> dict:
     )
 
     return keys
+
+def verify_signed_prekey(signing_public_key_b64: str, prekey_public_key_b64: str, signature_b64: str) -> bool:
+    return verify_signature(
+        signing_public_key_b64,
+        signature_b64,
+        SIGNED_PREKEY_CONTEXT + prekey_public_key_b64.encode("utf-8")
+    )
+
+
+def save_user_keys(username: str, keys: dict):
+    KEY_DIR.mkdir(exist_ok=True)
+
+    path = KEY_DIR / f"{username}.json"
+
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(keys, file, indent=4)
+
+
+def load_user_keys(username: str) -> dict:
+    path = KEY_DIR / f"{username}.json"
+
+    if not path.exists():
+        raise FileNotFoundError("Keys do not exist for this user.")
+
+    with open(path, "r", encoding="utf-8") as file:
+        keys = json.load(file)
+
+    if "signed_prekey_private_key" not in keys:
+        rotate_signed_prekey(keys)
+        save_user_keys(username, keys)
+
+    return keys
+
+def sign_data(signing_private_key_b64: str, data: bytes) -> str:
+    private_key = load_ed25519_private_key(signing_private_key_b64)
+    signature = private_key.sign(data)
+    return b64e(signature)
+
+
+def verify_signature(signing_public_key_b64: str, signature_b64: str, data: bytes) -> bool:
+    public_key = load_ed25519_public_key(signing_public_key_b64)
+
+    try:
+        public_key.verify(b64d(signature_b64), data)
+        return True
+    except InvalidSignature:
+        return False
