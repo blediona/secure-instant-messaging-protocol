@@ -123,3 +123,18 @@ def load_user_keys(username: str) -> dict:
         save_user_keys(username, keys)
 
     return keys
+
+def sign_data(signing_private_key_b64: str, data: bytes) -> str:
+    private_key = load_ed25519_private_key(signing_private_key_b64)
+    signature = private_key.sign(data)
+    return b64e(signature)
+
+
+def verify_signature(signing_public_key_b64: str, signature_b64: str, data: bytes) -> bool:
+    public_key = load_ed25519_public_key(signing_public_key_b64)
+
+    try:
+        public_key.verify(b64d(signature_b64), data)
+        return True
+    except InvalidSignature:
+        return False
