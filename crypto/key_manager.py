@@ -46,3 +46,48 @@ def private_key_to_b64(private_key) -> str:
         encryption_algorithm=serialization.NoEncryption()
     )
     return b64e(raw)
+
+def load_x25519_private_key(private_key_b64: str):
+    return x25519.X25519PrivateKey.from_private_bytes(b64d(private_key_b64))
+
+
+def load_x25519_public_key(public_key_b64: str):
+    return x25519.X25519PublicKey.from_public_bytes(b64d(public_key_b64))
+
+
+def load_ed25519_private_key(private_key_b64: str):
+    return ed25519.Ed25519PrivateKey.from_private_bytes(b64d(private_key_b64))
+
+
+def load_ed25519_public_key(public_key_b64: str):
+    return ed25519.Ed25519PublicKey.from_public_bytes(b64d(public_key_b64))
+
+def create_user_keys(username: str) -> dict:
+    identity_private, identity_public = generate_x25519_keypair()
+    signing_private, signing_public = generate_ed25519_keypair()
+
+    keys = {
+        "username": username,
+        "identity_private_key": private_key_to_b64(identity_private),
+        "identity_public_key": public_key_to_b64(identity_public),
+        "signing_private_key": private_key_to_b64(signing_private),
+        "signing_public_key": public_key_to_b64(signing_public)
+    }
+
+    rotate_signed_prekey(keys)
+
+    return keys
+
+
+def rotate_signed_prekey(keys: dict) -> dict:
+    prekey_private, prekey_public = generate_x25519_keypair()
+    prekey_public_b64 = public_key_to_b64(prekey_public)
+
+    keys["signed_prekey_private_key"] = private_key_to_b64(prekey_private)
+    keys["signed_prekey_public_key"] = prekey_public_b64
+    keys["signed_prekey_signature"] = sign_data(
+        keys["signing_private_key"],
+        SIGNED_PREKEY_CONTEXT + prekey_public_b64.encode("utf-8")
+    )
+
+    return keys
